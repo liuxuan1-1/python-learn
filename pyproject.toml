@@ -2,11 +2,11 @@
 name = "python-learn"
 version = "0.1.0"
 description = ""
-authors = ["liuxuan <2466959245@qq.com>"]
+authors = ["liuxuan <liuxuan4567@qq.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.12"
 pygame = "^2.5.2"
 pyspark = "^3.5.1"
 ipykernel = "^6.29.4"
