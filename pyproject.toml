@@ -15,6 +15,9 @@ pandas = "^2.2.2"
 matplotlib = "^3.9.0"
 plotly = "^5.22.0"
 django = "^5.0.6"
+langchain-openai = "^0.1.10"
+langgraph = "^0.1.2"
+python-dotenv = "^1.0.1"
 
 
 [build-system]
