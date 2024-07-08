@@ -117,4 +117,4 @@ while True:
     for event in graph.stream({"messages": [("user", user_input)]}):
         for value in event.values():
             if isinstance(value["messages"][-1], BaseMessage):
-                print("Assistant:", value["messages"][-1].content)
+                print("Assistant:", value["messages"][-1].content or value["messages"][-1].tool_calls)
