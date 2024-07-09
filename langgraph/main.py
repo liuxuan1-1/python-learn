@@ -8,6 +8,7 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langchain_openai import ChatOpenAI
 from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_core.messages import ToolMessage, AIMessage
 
 
 load_dotenv()
@@ -47,7 +48,12 @@ graph_builder.add_conditional_edges(
 )
 graph_builder.add_edge("tools", "chatbot")
 graph_builder.add_edge(START, "chatbot")
-graph = graph_builder.compile(checkpointer=memory)
+graph = graph_builder.compile(
+    checkpointer=memory,
+    interrupt_before=["tools"],
+    # Note: can also interrupt __after__ actions, if desired.
+    # interrupt_after=["tools"]
+)
 
 
 # We can use this to generate a graph of the state machine
@@ -60,15 +66,72 @@ graph = graph_builder.compile(checkpointer=memory)
 #     pass
 
 config = {"configurable": {"thread_id": "1"}}
-while True:
-    user_input = input("User: ")
-    if user_input.lower() in ["quit", "exit", "q"]:
-        print("Goodbye!")
-        break
-    for event in graph.stream(
-        {"messages": [("user", user_input)]}, config, stream_mode="values"
-    ):
+# while True:
+#     user_input = input("User: ")
+#     if user_input.lower() in ["quit", "exit", "q"]:
+#         print("Goodbye!")
+#         break
+#     for event in graph.stream(
+#         {"messages": [("user", user_input)]}, config, stream_mode="values"
+#     ):
+#         event["messages"][-1].pretty_print()
+#         # for value in event.values():
+#             # if isinstance(value["messages"][-1], BaseMessage):
+#             #     print("Assistant:", value["messages"][-1].content or value["messages"][-1].tool_calls)
+user_input = "Do you know Qitaihe GDP?"
+# The config is the **second positional argument** to stream() or invoke()!
+events = graph.stream({"messages": [("user", user_input)]}, config)
+for event in events:
+    if "messages" in event:
         event["messages"][-1].pretty_print()
-        # for value in event.values():
-            # if isinstance(value["messages"][-1], BaseMessage):
-            #     print("Assistant:", value["messages"][-1].content or value["messages"][-1].tool_calls)
+
+snapshot = graph.get_state(config)
+existing_message = snapshot.values["messages"][-1]
+print("Original")
+print("Message ID", existing_message.id)
+print(existing_message.tool_calls[0])
+new_tool_call = existing_message.tool_calls[0].copy()
+new_tool_call["args"]["query"] = "Is Qitaihe NB?"
+new_message = AIMessage(
+    content=existing_message.content,
+    tool_calls=[new_tool_call],
+    # Important! The ID is how LangGraph knows to REPLACE the message in the state rather than APPEND this messages
+    id=existing_message.id,
+)
+print("Updated")
+print(new_message.tool_calls[0])
+print("Message ID", new_message.id)
+graph.update_state(config, {"messages": [new_message]})
+
+answer = (
+    "Qitaihe GDP is 6.5 trillion RMB in 2020."
+)
+new_messages = [
+    # The LLM API expects some ToolMessage to match its tool call. We'll satisfy that here.
+    ToolMessage(content=answer, tool_call_id=existing_message.tool_calls[0]["id"]),
+    # And then directly "put words in the LLM's mouth" by populating its response.
+    AIMessage(content=answer),
+]
+new_messages[-1].pretty_print()
+graph.update_state(
+    # Which state to update
+    config,
+    # The updated values to provide. The messages in our `State` are "append-only", meaning this will be appended
+    # to the existing state. We will review how to update existing messages in the next section!
+    {"messages": new_messages},
+)
+print("\n\nLast 2 messages;")
+print(graph.get_state(config).values["messages"][-2:])
+
+
+# Add an update and tell the graph to treat it as if it came from the "chatbot".
+# graph.update_state(
+#     config,
+#     {"messages": [AIMessage(content="I'm an AI expert!")]},
+#     # Which node for this function to act as. It will automatically continue
+#     # processing as if this node just ran.
+#     as_node="chatbot",
+# )
+# snapshot = graph.get_state(config)
+# print(snapshot.values["messages"][-3:])
+# print(snapshot.next)
